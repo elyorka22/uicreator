@@ -1,0 +1,37 @@
+{
+  "$schemaVersion": "1.0",
+  "id": "promo_card",
+  "root": {
+    "type": "card",
+    "props": { "elevation": 2 },
+    "style": {
+      "padding": { "all": 16 },
+      "decoration": { "borderRadius": 16, "color": "#FFFFFFFF" }
+    },
+    "children": [
+      {
+        "type": "column",
+        "style": { "gap": 12, "crossAxisAlignment": "stretch" },
+        "children": [
+          {
+            "type": "text",
+            "props": { "data": "Upgrade plan" },
+            "style": { "textStyle": { "fontSize": 20, "fontWeight": "w700" } }
+          },
+          {
+            "type": "text",
+            "props": { "data": "Unlock unlimited generations." },
+            "style": { "textStyle": { "fontSize": 14, "color": "#99000000" } }
+          },
+          {
+            "type": "button",
+            "props": { "label": "Continue", "variant": "filled" },
+            "actions": {
+              "onPressed": { "type": "previewToast", "message": "Continue" }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

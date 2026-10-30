@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://aiuistudio.app/schemas/universal-ui/1.0.json",
+  "title": "Universal UI Schema",
+  "description": "Platform-independent UI component tree for AI UI Studio preview and editing.",
+  "type": "object",
+  "required": ["$schemaVersion", "root"],
+  "additionalProperties": true,
+  "properties": {
+    "$schemaVersion": { "type": "string", "const": "1.0" },
+    "id": { "type": "string" },
+    "root": { "$ref": "#/definitions/node" }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "container",
+            "text",
+            "button",
+            "image",
+            "icon",
+            "row",
+            "column",
+            "stack",
+            "card",
+            "textField",
+            "checkbox",
+            "switch",
+            "divider",
+            "padding",
+            "scrollView",
+            "sizedBox",
+            "spacer",
+            "center",
+            "expanded",
+            "flexible"
+          ]
+        },
+        "id": { "type": "string" },
+        "props": { "type": "object" },
+        "style": { "type": "object" },
+        "actions": { "type": "object" },
+        "children": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/node" }
+        },
+        "child": { "$ref": "#/definitions/node" }
+      }
+    }
+  }
+}

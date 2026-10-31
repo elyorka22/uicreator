@@ -565,7 +565,7 @@ class _PreviewAnimationState extends State<_PreviewAnimation>
         switch (widget.kind) {
           case 'shake':
           case 'wiggle':
-            final ringEnd = 0.22;
+            const ringEnd = 0.22;
             final angle = t >= ringEnd
                 ? 0.0
                 : math.sin((t / ringEnd) * math.pi * 6) *

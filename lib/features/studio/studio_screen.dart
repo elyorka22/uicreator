@@ -26,6 +26,7 @@ class StudioScreen extends ConsumerStatefulWidget {
 class _StudioScreenState extends ConsumerState<StudioScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
+  final _refineController = TextEditingController();
   bool _busy = false;
   String? _status;
   CancelToken? _cancelToken;
@@ -39,6 +40,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
   @override
   void dispose() {
     _cancelToken?.cancel('disposed');
+    _refineController.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -82,17 +84,74 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
     ref.invalidate(componentDetailProvider(widget.componentId));
   }
 
+  Future<void> _refine(UiComponent component) async {
+    final change = _refineController.text.trim();
+    if (change.isEmpty || _busy) return;
+
+    setState(() {
+      _busy = true;
+      _status = 'Applying changes…';
+    });
+    _cancelToken = CancelToken();
+    GenerationEnvelope? envelope;
+    String? error;
+
+    try {
+      await for (final progress in ref.read(generationServiceProvider).refine(
+            component: component,
+            changeRequest: change,
+            cancelToken: _cancelToken,
+          )) {
+        if (progress.envelope != null) envelope = progress.envelope;
+        if (progress.error != null) error = progress.error;
+        if (progress.done) break;
+      }
+
+      if (envelope == null) {
+        setState(() => _status = error ?? 'Refine failed');
+        return;
+      }
+
+      final promptHistory = [
+        if (component.prompt != null && component.prompt!.trim().isNotEmpty)
+          component.prompt!.trim(),
+        'Refine: $change',
+      ].join('\n');
+
+      final updated = component.copyWith(
+        name: envelope.componentName,
+        description: envelope.description,
+        schemaJson: envelope.schemaJson,
+        sourceFiles: envelope.sourceFiles,
+        tags: envelope.tags,
+        prompt: promptHistory,
+        generationMode:
+            envelope.schemaValid ? 'schema_and_source' : 'source_only',
+        updatedAt: DateTime.now().toUtc(),
+      );
+      await ref.read(componentsListProvider.notifier).save(updated);
+      ref.invalidate(componentDetailProvider(widget.componentId));
+      _refineController.clear();
+      setState(() => _status = 'Changes applied and saved');
+    } catch (e) {
+      setState(() => _status = e.toString());
+    } finally {
+      _cancelToken = null;
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _regenerate(UiComponent component) async {
     final hintController = TextEditingController();
     final hint = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Regenerate'),
+        title: const Text('Regenerate from scratch'),
         content: TextField(
           controller: hintController,
           decoration: const InputDecoration(
-            labelText: 'Optional changes',
-            hintText: 'Make the button larger, use a darker card…',
+            labelText: 'Optional direction',
+            hintText: 'Rebuild with a darker theme…',
           ),
           minLines: 2,
           maxLines: 4,
@@ -221,7 +280,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
           padding: EdgeInsets.all(24),
           child: Text(
             'No valid Universal UI Schema for Flutter preview.\n'
-            'Source-only components can still be edited and exported.',
+            'Source-only components can still be refined, edited and exported.',
             textAlign: TextAlign.center,
           ),
         ),
@@ -236,6 +295,63 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
           SnackBar(content: Text('Preview action: $message')),
         );
       },
+    );
+  }
+
+  Widget _refineBar(UiComponent component) {
+    return Material(
+      elevation: 6,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Доработать промптом',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _refineController,
+                      enabled: !_busy,
+                      minLines: 1,
+                      maxLines: 4,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _refine(component),
+                      decoration: const InputDecoration(
+                        hintText:
+                            'Например: сделай badge красным и добавь анимацию…',
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (_busy)
+                    IconButton.filled(
+                      onPressed: () => _cancelToken?.cancel('User cancelled'),
+                      icon: const Icon(Icons.stop),
+                      tooltip: 'Stop',
+                    )
+                  else
+                    IconButton.filled(
+                      onPressed: () => _refine(component),
+                      icon: const Icon(Icons.send),
+                      tooltip: 'Apply refine',
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -278,7 +394,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
                 icon: const Icon(Icons.drive_file_rename_outline),
               ),
               IconButton(
-                tooltip: 'Regenerate',
+                tooltip: 'Regenerate from scratch',
                 onPressed: _busy ? null : () => _regenerate(component),
                 icon: const Icon(Icons.refresh),
               ),
@@ -308,7 +424,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
               if (_busy) const LinearProgressIndicator(),
               if (_status != null)
                 Padding(
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
                   child: Text(_status!),
                 ),
               Expanded(
@@ -321,6 +437,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
                   ],
                 ),
               ),
+              _refineBar(component),
             ],
           ),
         );

@@ -43,6 +43,48 @@ class GenerationService {
     String? regenerateHint,
     CancelToken? cancelToken,
     int maxRepairAttempts = 1,
+  }) {
+    return _run(
+      platform: platform,
+      userContent: PromptBuilder.userPrompt(
+        description: prompt,
+        platform: platform,
+        regenerateHint: regenerateHint,
+      ),
+      cancelToken: cancelToken,
+      maxRepairAttempts: maxRepairAttempts,
+    );
+  }
+
+  /// Apply a follow-up prompt to an existing component (schema + source context).
+  Stream<GenerationProgress> refine({
+    required UiComponent component,
+    required String changeRequest,
+    CancelToken? cancelToken,
+    int maxRepairAttempts = 1,
+  }) {
+    return _run(
+      platform: component.platform,
+      userContent: PromptBuilder.refineUserPrompt(
+        changeRequest: changeRequest,
+        platform: component.platform,
+        componentName: component.name,
+        originalPrompt: component.prompt,
+        currentSchemaJson: component.schemaJson,
+        currentSourceFiles: component.sourceFiles,
+      ),
+      cancelToken: cancelToken,
+      maxRepairAttempts: maxRepairAttempts,
+      temperature: 0.3,
+    );
+  }
+
+  Stream<GenerationProgress> _run({
+    required TargetPlatformKind platform,
+    required String userContent,
+    CancelToken? cancelToken,
+    int maxRepairAttempts = 1,
+    double temperature = 0.35,
   }) async* {
     final config = await _requireProvider();
     final apiKey = await _requireApiKey(config);
@@ -55,11 +97,7 @@ class GenerationService {
       ),
       AiChatMessage(
         role: AiMessageRole.user,
-        content: PromptBuilder.userPrompt(
-          description: prompt,
-          platform: platform,
-          regenerateHint: regenerateHint,
-        ),
+        content: userContent,
       ),
     ];
 
@@ -69,8 +107,7 @@ class GenerationService {
         AiChatRequest(
           model: config.modelId,
           messages: messages,
-          temperature: 0.35,
-          // Complex widgets + JSON envelope need generous room.
+          temperature: temperature,
           maxTokens: 8192,
           responseFormat: adapter.supportsJsonObject
               ? AiResponseFormat.jsonObject
@@ -96,7 +133,7 @@ class GenerationService {
     }
 
     try {
-      var envelope = ResponseParser.parse(buffer, fallbackPlatform: platform);
+      final envelope = ResponseParser.parse(buffer, fallbackPlatform: platform);
       if (envelope.schemaJson != null &&
           !envelope.schemaValid &&
           maxRepairAttempts > 0) {

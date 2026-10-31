@@ -134,6 +134,64 @@ React / JSX:
     return buffer.toString();
   }
 
+  /// Iterative edit: keep the existing component and apply a change request.
+  static String refineUserPrompt({
+    required String changeRequest,
+    required TargetPlatformKind platform,
+    required String componentName,
+    String? originalPrompt,
+    String? currentSchemaJson,
+    List<SourceFile> currentSourceFiles = const [],
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('Target platform: ${platform.wireName}')
+      ..writeln('Task: REFINE an existing component. Do not start from scratch.')
+      ..writeln('Component name: $componentName');
+    if (originalPrompt != null && originalPrompt.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Original user intent:')
+        ..writeln(originalPrompt.trim());
+    }
+    buffer
+      ..writeln()
+      ..writeln('Requested changes (apply these carefully):')
+      ..writeln(changeRequest.trim())
+      ..writeln()
+      ..writeln(
+        'Rules for refine:\n'
+        '- Preserve what already works unless the change request overrides it.\n'
+        '- Update BOTH schema (preview) and source files.\n'
+        '- Keep production quality; no toy demo chrome.\n'
+        '- Keep the same componentName unless renaming was requested.',
+      );
+
+    if (currentSchemaJson != null && currentSchemaJson.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Current schema JSON:')
+        ..writeln(_truncate(currentSchemaJson.trim(), 6000));
+    }
+
+    if (currentSourceFiles.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('Current source files:');
+      for (final file in currentSourceFiles) {
+        buffer
+          ..writeln('--- ${file.path} ---')
+          ..writeln(_truncate(file.content, 8000));
+      }
+    }
+
+    buffer.writeln('\nRespond with the full updated JSON envelope only.');
+    return buffer.toString();
+  }
+
+  static String _truncate(String value, int maxChars) {
+    if (value.length <= maxChars) return value;
+    return '${value.substring(0, maxChars)}\n… [truncated]';
+  }
+
   static String repairPrompt({
     required String previousOutput,
     required List<String> errors,

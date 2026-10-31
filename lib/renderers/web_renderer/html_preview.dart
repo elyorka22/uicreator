@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:ai_ui_studio/renderers/preview_frame/artifact_preview_frame.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -11,11 +12,13 @@ class HtmlPreview extends StatefulWidget {
     required this.html,
     this.css,
     this.js,
+    this.framed = true,
   });
 
   final String html;
   final String? css;
   final String? js;
+  final bool framed;
 
   @override
   State<HtmlPreview> createState() => _HtmlPreviewState();
@@ -79,7 +82,20 @@ class _HtmlPreviewState extends State<HtmlPreview> {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <style>
-body { font-family: system-ui, sans-serif; margin: 16px; }
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background: transparent;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  box-sizing: border-box;
+}
 ${css ?? ''}
 </style>
 </head>
@@ -98,6 +114,15 @@ ${js ?? ''}
     if (!_ready) {
       return const Center(child: CircularProgressIndicator());
     }
-    return WebViewWidget(controller: _controller);
+    final web = SizedBox(
+      height: 320,
+      width: double.infinity,
+      child: WebViewWidget(controller: _controller),
+    );
+    if (!widget.framed) return web;
+    return ArtifactPreviewFrame(
+      caption: 'HTML preview — готовый элемент в контейнере',
+      child: web,
+    );
   }
 }

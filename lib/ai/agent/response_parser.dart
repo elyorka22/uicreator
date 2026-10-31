@@ -29,6 +29,9 @@ class GenerationEnvelope {
   final Map<String, dynamic>? rawJson;
 
   bool get hasSchema => schemaJson != null && schemaJson!.isNotEmpty;
+
+  bool get hasHtmlPreview =>
+      ComponentPreviewAssets.fromFiles(sourceFiles) != null;
 }
 
 class ResponseParseException implements Exception {
@@ -46,7 +49,6 @@ class ResponseParser {
       throw ResponseParseException('Empty model response');
     }
 
-    // Strip markdown fences if present.
     final fence = RegExp(r'```(?:json)?\s*([\s\S]*?)```', multiLine: true);
     final fenceMatch = fence.firstMatch(trimmed);
     final candidate = fenceMatch != null ? fenceMatch.group(1)!.trim() : trimmed;
@@ -69,9 +71,40 @@ class ResponseParser {
     throw ResponseParseException('Could not parse JSON object from model response');
   }
 
+  static List<SourceFile> _filesFromBlock(dynamic block) {
+    final out = <SourceFile>[];
+    if (block is! Map) return out;
+    final files = block['files'];
+    if (files is List) {
+      for (final file in files.whereType<Map>()) {
+        out.add(SourceFile.fromJson(Map<String, dynamic>.from(file)));
+      }
+    } else if (block['content'] != null) {
+      final language = block['language']?.toString() ?? 'txt';
+      out.add(
+        SourceFile(
+          path: 'component.${_ext(language)}',
+          content: block['content'].toString(),
+        ),
+      );
+    }
+    return out;
+  }
+
+  static List<SourceFile> _mergeFiles(List<SourceFile> primary, List<SourceFile> secondary) {
+    final byPath = <String, SourceFile>{};
+    for (final f in secondary) {
+      byPath[f.path] = f;
+    }
+    for (final f in primary) {
+      byPath[f.path] = f;
+    }
+    return byPath.values.toList();
+  }
+
   static GenerationEnvelope parse(
     String raw, {
-    TargetPlatformKind fallbackPlatform = TargetPlatformKind.flutter,
+    TargetPlatformKind fallbackPlatform = TargetPlatformKind.visual,
   }) {
     final map = extractJsonObject(raw);
     final name = (map['componentName'] ?? map['name'] ?? 'GeneratedComponent')
@@ -95,26 +128,8 @@ class ResponseParser {
       schemaErrors = ['schema must be an object or null'];
     }
 
-    final sourceFiles = <SourceFile>[];
-    final source = map['source'];
-    if (source is Map) {
-      final files = source['files'];
-      if (files is List) {
-        for (final file in files.whereType<Map>()) {
-          sourceFiles.add(
-            SourceFile.fromJson(Map<String, dynamic>.from(file)),
-          );
-        }
-      } else if (source['content'] != null) {
-        final language = source['language']?.toString() ?? 'txt';
-        sourceFiles.add(
-          SourceFile(
-            path: 'component.${_ext(language)}',
-            content: source['content'].toString(),
-          ),
-        );
-      }
-    }
+    final previewFiles = _filesFromBlock(map['preview']);
+    final sourceFiles = _mergeFiles(_filesFromBlock(map['source']), previewFiles);
 
     final tags = (map['tags'] is List)
         ? (map['tags'] as List).map((e) => e.toString()).toList()
@@ -124,12 +139,17 @@ class ResponseParser {
         : <String>[];
 
     if (!schemaValid && schemaJson != null) {
-      warnings.add('Schema validation failed; preview may be unavailable.');
+      warnings.add('Schema validation failed; HTML preview may still work.');
     }
+
+    final hasPreview = ComponentPreviewAssets.fromFiles(sourceFiles) != null;
     if (sourceFiles.isEmpty && !schemaValid) {
       throw ResponseParseException(
-        'Envelope has neither valid schema nor source files',
+        'Envelope has neither valid schema nor preview/source files',
       );
+    }
+    if (!hasPreview && platform == TargetPlatformKind.visual) {
+      warnings.add('Missing HTML preview files; Studio will fall back to schema.');
     }
 
     return GenerationEnvelope(

@@ -37,18 +37,20 @@ class GenerationService {
   final ProviderRegistry _registry;
   final RedactingLogger _logger;
 
+  /// Plain-language → visual component (HTML preview). Platform chosen at export.
   Stream<GenerationProgress> generate({
     required String prompt,
-    required TargetPlatformKind platform,
+    @Deprecated('Ignored — generation is always visual-first')
+    TargetPlatformKind platform = TargetPlatformKind.visual,
     String? regenerateHint,
     CancelToken? cancelToken,
     int maxRepairAttempts = 1,
   }) {
     return _run(
-      platform: platform,
-      userContent: PromptBuilder.userPrompt(
+      platform: TargetPlatformKind.visual,
+      systemContent: PromptBuilder.visualSystemPrompt(),
+      userContent: PromptBuilder.visualUserPrompt(
         description: prompt,
-        platform: platform,
         regenerateHint: regenerateHint,
       ),
       cancelToken: cancelToken,
@@ -56,7 +58,7 @@ class GenerationService {
     );
   }
 
-  /// Apply a follow-up prompt to an existing component (schema + source context).
+  /// Apply a follow-up prompt to an existing component (preview + schema).
   Stream<GenerationProgress> refine({
     required UiComponent component,
     required String changeRequest,
@@ -64,10 +66,11 @@ class GenerationService {
     int maxRepairAttempts = 1,
   }) {
     return _run(
-      platform: component.platform,
+      platform: TargetPlatformKind.visual,
+      systemContent: PromptBuilder.visualSystemPrompt(),
       userContent: PromptBuilder.refineUserPrompt(
         changeRequest: changeRequest,
-        platform: component.platform,
+        platform: TargetPlatformKind.visual,
         componentName: component.name,
         originalPrompt: component.prompt,
         currentSchemaJson: component.schemaJson,
@@ -79,8 +82,42 @@ class GenerationService {
     );
   }
 
+  /// Convert visual component into Flutter/HTML/React source for export.
+  Stream<GenerationProgress> convertForExport({
+    required UiComponent component,
+    required TargetPlatformKind target,
+    CancelToken? cancelToken,
+    int maxRepairAttempts = 1,
+  }) {
+    if (!target.isExportTarget) {
+      return Stream.value(
+        const GenerationProgress(
+          partialText: '',
+          done: true,
+          error: 'Pick Flutter, HTML, or React for export.',
+        ),
+      );
+    }
+    return _run(
+      platform: target,
+      systemContent: PromptBuilder.exportSystemPrompt(target),
+      userContent: PromptBuilder.exportConvertUserPrompt(
+        target: target,
+        componentName: component.name,
+        originalPrompt: component.prompt,
+        description: component.description,
+        currentSchemaJson: component.schemaJson,
+        currentSourceFiles: component.sourceFiles,
+      ),
+      cancelToken: cancelToken,
+      maxRepairAttempts: maxRepairAttempts,
+      temperature: 0.25,
+    );
+  }
+
   Stream<GenerationProgress> _run({
     required TargetPlatformKind platform,
+    required String systemContent,
     required String userContent,
     CancelToken? cancelToken,
     int maxRepairAttempts = 1,
@@ -91,14 +128,8 @@ class GenerationService {
     final adapter = _registry.resolve(config.type);
 
     final messages = <AiChatMessage>[
-      AiChatMessage(
-        role: AiMessageRole.system,
-        content: PromptBuilder.systemPrompt(platform),
-      ),
-      AiChatMessage(
-        role: AiMessageRole.user,
-        content: userContent,
-      ),
+      AiChatMessage(role: AiMessageRole.system, content: systemContent),
+      AiChatMessage(role: AiMessageRole.user, content: userContent),
     ];
 
     var buffer = '';
@@ -141,6 +172,7 @@ class GenerationService {
           adapter: adapter,
           config: config,
           apiKey: apiKey,
+          systemContent: systemContent,
           platform: platform,
           previous: buffer,
           errors: envelope.schemaErrors,
@@ -166,6 +198,7 @@ class GenerationService {
           adapter: adapter,
           config: config,
           apiKey: apiKey,
+          systemContent: systemContent,
           platform: platform,
           previous: buffer,
           errors: [e.toString()],
@@ -192,6 +225,7 @@ class GenerationService {
     required AiProviderPort adapter,
     required AiProviderConfig config,
     required String apiKey,
+    required String systemContent,
     required TargetPlatformKind platform,
     required String previous,
     required List<String> errors,
@@ -202,10 +236,7 @@ class GenerationService {
         AiChatRequest(
           model: config.modelId,
           messages: [
-            AiChatMessage(
-              role: AiMessageRole.system,
-              content: PromptBuilder.systemPrompt(platform),
-            ),
+            AiChatMessage(role: AiMessageRole.system, content: systemContent),
             AiChatMessage(
               role: AiMessageRole.user,
               content: PromptBuilder.repairPrompt(

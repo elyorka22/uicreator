@@ -121,12 +121,14 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
       final updated = component.copyWith(
         name: envelope.componentName,
         description: envelope.description,
+        platform: TargetPlatformKind.visual,
         schemaJson: envelope.schemaJson,
         sourceFiles: envelope.sourceFiles,
         tags: envelope.tags,
         prompt: promptHistory,
-        generationMode:
-            envelope.schemaValid ? 'schema_and_source' : 'source_only',
+        generationMode: envelope.hasHtmlPreview
+            ? 'visual_preview'
+            : (envelope.schemaValid ? 'schema_and_source' : 'source_only'),
         updatedAt: DateTime.now().toUtc(),
       );
       await ref.read(componentsListProvider.notifier).save(updated);
@@ -185,7 +187,6 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
                     : component.description.isNotEmpty
                         ? component.description
                         : component.name,
-                platform: component.platform,
                 regenerateHint: hint,
                 cancelToken: _cancelToken,
               )) {
@@ -200,11 +201,13 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
       final updated = component.copyWith(
         name: envelope.componentName,
         description: envelope.description,
+        platform: TargetPlatformKind.visual,
         schemaJson: envelope.schemaJson,
         sourceFiles: envelope.sourceFiles,
         tags: envelope.tags,
-        generationMode:
-            envelope.schemaValid ? 'schema_and_source' : 'source_only',
+        generationMode: envelope.hasHtmlPreview
+            ? 'visual_preview'
+            : (envelope.schemaValid ? 'schema_and_source' : 'source_only'),
         updatedAt: DateTime.now().toUtc(),
       );
       await ref.read(componentsListProvider.notifier).save(updated);
@@ -219,82 +222,158 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
   }
 
   Future<void> _export(UiComponent component) async {
+    final target = await showModalBottomSheet<TargetPlatformKind>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                child: Text(
+                  'Экспорт — выберите платформу',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Сначала вы видели preview. Сейчас получите код под проект.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              ListTile(
+                leading: const Icon(Icons.phone_android),
+                title: const Text('Flutter / Dart'),
+                subtitle: const Text('Виджет для Flutter-проекта'),
+                onTap: () => Navigator.pop(context, TargetPlatformKind.flutter),
+              ),
+              ListTile(
+                leading: const Icon(Icons.language),
+                title: const Text('HTML / CSS / JS'),
+                subtitle: const Text('Как в preview, готовые файлы'),
+                onTap: () => Navigator.pop(context, TargetPlatformKind.html),
+              ),
+              ListTile(
+                leading: const Icon(Icons.code),
+                title: const Text('React / JSX'),
+                subtitle: const Text('Компонент для React'),
+                onTap: () => Navigator.pop(context, TargetPlatformKind.react),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+    if (target == null) return;
+
     setState(() {
       _busy = true;
-      _status = 'Exporting…';
+      _status = 'Готовим ${target.exportLabel}…';
     });
+    _cancelToken = CancelToken();
+
     try {
-      final bundle =
-          await ref.read(exportServiceProvider).exportComponent(component);
+      final exportService = ref.read(exportServiceProvider);
+      var files = component.sourceFiles;
+      var working = component;
+
+      final needsConvert =
+          !exportService.canExportWithoutConvert(component, target);
+      if (needsConvert) {
+        setState(() => _status = 'Генерируем ${target.exportLabel} код…');
+        GenerationEnvelope? envelope;
+        String? error;
+        await for (final progress
+            in ref.read(generationServiceProvider).convertForExport(
+                  component: component,
+                  target: target,
+                  cancelToken: _cancelToken,
+                )) {
+          if (progress.envelope != null) envelope = progress.envelope;
+          if (progress.error != null) error = progress.error;
+          if (progress.done) break;
+        }
+        if (envelope == null) {
+          setState(() => _status = error ?? 'Export convert failed');
+          return;
+        }
+        files = envelope.sourceFiles;
+        working = component.copyWith(
+          name: envelope.componentName,
+          description: envelope.description,
+          platform: target,
+          schemaJson: envelope.schemaJson,
+          sourceFiles: envelope.sourceFiles,
+          tags: envelope.tags,
+          generationMode: 'exported_${target.wireName}',
+          updatedAt: DateTime.now().toUtc(),
+        );
+        await ref.read(componentsListProvider.notifier).save(working);
+        ref.invalidate(componentDetailProvider(widget.componentId));
+      } else if (target != component.platform && target.isExportTarget) {
+        working = component.copyWith(
+          platform: target,
+          updatedAt: DateTime.now().toUtc(),
+        );
+        await ref.read(componentsListProvider.notifier).save(working);
+        ref.invalidate(componentDetailProvider(widget.componentId));
+      }
+
+      setState(() => _status = 'Packaging ZIP…');
+      final bundle = await exportService.exportComponent(
+        working,
+        target: target,
+        filesOverride: files,
+      );
       await Share.shareXFiles(
         [XFile(bundle.zipFile.path)],
-        text: '${component.name} export from AI UI Studio',
+        text: '${working.name} (${target.exportLabel}) — AI UI Studio',
       );
-      setState(() => _status = 'Exported ${bundle.zipFile.path}');
+      setState(() => _status = 'Exported ${target.exportLabel}');
     } catch (e) {
       setState(() => _status = 'Export failed: $e');
     } finally {
+      _cancelToken = null;
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Widget _preview(UiComponent component) {
-    if (component.platform == TargetPlatformKind.html) {
-      final html = component.sourceFiles
-          .where((f) => f.path.endsWith('.html'))
-          .map((f) => f.content)
-          .join('\n');
-      final css = component.sourceFiles
-          .where((f) => f.path.endsWith('.css'))
-          .map((f) => f.content)
-          .join('\n');
-      final js = component.sourceFiles
-          .where((f) => f.path.endsWith('.js'))
-          .map((f) => f.content)
-          .join('\n');
-      if (html.isEmpty) {
-        return const Center(
-          child: Text('No HTML source available for WebView preview.'),
-        );
-      }
-      return HtmlPreview(html: html, css: css, js: js);
-    }
-
-    if (component.platform == TargetPlatformKind.react) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'React live preview is not included in the MVP.\n'
-            'Use the Code tab to view/edit JSX and Export to share files.',
-            textAlign: TextAlign.center,
-          ),
-        ),
-      );
+    // Visual-first: always prefer interactive HTML preview when available.
+    final assets = component.previewAssets;
+    if (assets != null && !assets.isEmpty) {
+      return HtmlPreview(html: assets.html, css: assets.css, js: assets.js);
     }
 
     final document = _documentOf(component);
-    if (document == null) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'No valid Universal UI Schema for Flutter preview.\n'
-            'Source-only components can still be refined, edited and exported.',
-            textAlign: TextAlign.center,
-          ),
-        ),
+    if (document != null) {
+      return SchemaPreview(
+        document: document,
+        caption:
+            'Schema fallback · доработайте промптом, чтобы получить HTML preview',
+        onAction: (type, payload) {
+          final message = payload['message']?.toString() ?? type;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Preview action: $message')),
+          );
+        },
       );
     }
 
-    return SchemaPreview(
-      document: document,
-      onAction: (type, payload) {
-        final message = payload['message']?.toString() ?? type;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Preview action: $message')),
-        );
-      },
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Нет HTML preview и schema.\n'
+          'Доработайте промптом или пересоздайте элемент.',
+          textAlign: TextAlign.center,
+        ),
+      ),
     );
   }
 
@@ -328,7 +407,7 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
                       onSubmitted: (_) => _refine(component),
                       decoration: const InputDecoration(
                         hintText:
-                            'Например: сделай badge красным и добавь анимацию…',
+                            'Например: переделай в type badge, shake-анимация, кликабельно…',
                         isDense: true,
                       ),
                     ),

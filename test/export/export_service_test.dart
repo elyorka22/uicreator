@@ -39,9 +39,13 @@ void main() {
     final service = ExportService(
       documentsDirectoryOverride: () => tempDir,
     );
-    final bundle = await service.exportComponent(component);
+    final bundle = await service.exportComponent(
+      component,
+      target: TargetPlatformKind.flutter,
+    );
 
     expect(await bundle.zipFile.exists(), isTrue);
+    expect(bundle.target, TargetPlatformKind.flutter);
     expect(bundle.files.any((f) => f.path.endsWith('button.dart')), isTrue);
     expect(
       bundle.files.any((f) => f.path.endsWith('README_USAGE.md')),
@@ -93,5 +97,41 @@ void main() {
     expect(archive.files.any((f) => f.name.contains('A.jsx')), isTrue);
     expect(archive.files.any((f) => f.name.contains('index.html')), isTrue);
     expect(archive.files.any((f) => f.name == 'README.md'), isTrue);
+  });
+
+  test('html export promotes preview folder files', () async {
+    final now = DateTime.now().toUtc();
+    final service = ExportService(
+      documentsDirectoryOverride: () => tempDir,
+    );
+    final component = UiComponent(
+      id: 'v1',
+      name: 'Bell',
+      description: 'bell',
+      platform: TargetPlatformKind.visual,
+      schemaJson: null,
+      sourceFiles: const [
+        SourceFile(path: 'preview/index.html', content: '<button>1</button>'),
+        SourceFile(path: 'preview/styles.css', content: 'button{}'),
+        SourceFile(path: 'preview/script.js', content: ''),
+      ],
+      tags: const [],
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    expect(service.canExportWithoutConvert(component, TargetPlatformKind.html), isTrue);
+    expect(
+      service.canExportWithoutConvert(component, TargetPlatformKind.flutter),
+      isFalse,
+    );
+
+    final bundle = await service.exportComponent(
+      component,
+      target: TargetPlatformKind.html,
+    );
+    expect(bundle.files.any((f) => f.path.endsWith('index.html')), isTrue);
+    expect(bundle.files.any((f) => f.path.endsWith('styles.css')), isTrue);
   });
 }

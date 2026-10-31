@@ -147,4 +147,5 @@ const Set<String> kSupportedUiNodeTypes = {
   'expanded',
   'flexible',
   'gestureDetector',
+  'badge',
 };

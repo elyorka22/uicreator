@@ -1,9 +1,15 @@
+import 'dart:math' as math;
+
+import 'package:ai_ui_studio/renderers/preview_frame/artifact_preview_frame.dart';
 import 'package:ai_ui_studio/schema/style_mapper.dart';
 import 'package:ai_ui_studio/schema/ui_node.dart';
 import 'package:ai_ui_studio/schema/ui_schema_validator.dart';
 import 'package:flutter/material.dart';
 
-typedef PreviewActionHandler = void Function(String actionType, Map<String, dynamic> payload);
+typedef PreviewActionHandler = void Function(
+  String actionType,
+  Map<String, dynamic> payload,
+);
 
 class FlutterWidgetRenderer {
   const FlutterWidgetRenderer({this.onAction});
@@ -11,10 +17,7 @@ class FlutterWidgetRenderer {
   final PreviewActionHandler? onAction;
 
   Widget buildDocument(UiDocument document) {
-    return _NodeWidget(
-      node: document.root,
-      onAction: onAction,
-    );
+    return _NodeWidget(node: document.root, onAction: onAction);
   }
 
   Widget buildFromJson(Map<String, dynamic> json) {
@@ -32,11 +35,15 @@ class SchemaPreview extends StatelessWidget {
     required this.document,
     this.onAction,
     this.emptyMessage = 'No preview yet',
+    this.caption,
+    this.framed = true,
   });
 
   final UiDocument? document;
   final PreviewActionHandler? onAction;
   final String emptyMessage;
+  final String? caption;
+  final bool framed;
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +56,21 @@ class SchemaPreview extends StatelessWidget {
         ),
       );
     }
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: FlutterWidgetRenderer(onAction: onAction).buildDocument(document!),
+
+    final content = FlutterWidgetRenderer(onAction: onAction)
+        .buildDocument(document!);
+
+    if (!framed) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Align(alignment: Alignment.topLeft, child: content),
+      );
+    }
+
+    // Claude-style: component as a ready element inside an artifact card.
+    return ArtifactPreviewFrame(
+      caption: caption ?? 'Нажмите на элемент — это интерактивный preview',
+      child: content,
     );
   }
 }
@@ -87,7 +106,7 @@ class _NodeWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     try {
-      return _build(context);
+      return _maybeAnimate(_build(context));
     } catch (e) {
       return _ErrorBox(errors: ['Failed to render ${node.type}: $e']);
     }
@@ -120,6 +139,8 @@ class _NodeWidget extends StatelessWidget {
           size: StyleMapper.width(node.style) ?? 24,
           color: StyleMapper.color(node.style['color']),
         );
+      case 'badge':
+        return _buildBadge();
       case 'image':
         final url = node.propString('url') ?? node.propString('src') ?? '';
         final w = StyleMapper.width(node.style);
@@ -140,9 +161,10 @@ class _NodeWidget extends StatelessWidget {
         return const Spacer();
       case 'sizedBox':
         return SizedBox(
-          width: StyleMapper.width(node.style) ?? node.propNum('width')?.toDouble(),
-          height:
-              StyleMapper.height(node.style) ?? node.propNum('height')?.toDouble(),
+          width:
+              StyleMapper.width(node.style) ?? node.propNum('width')?.toDouble(),
+          height: StyleMapper.height(node.style) ??
+              node.propNum('height')?.toDouble(),
           child: _maybeChild(),
         );
       case 'padding':
@@ -166,6 +188,7 @@ class _NodeWidget extends StatelessWidget {
       case 'row':
         return _wrapStyle(
           Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment:
                 StyleMapper.mainAxisAlignment(node.style['mainAxisAlignment']),
             crossAxisAlignment:
@@ -185,15 +208,7 @@ class _NodeWidget extends StatelessWidget {
           ),
         );
       case 'stack':
-        return _wrapStyle(
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: StyleMapper.alignment(node.style['alignment']),
-            children: node.children
-                .map((c) => _NodeWidget(node: c, onAction: onAction))
-                .toList(),
-          ),
-        );
+        return _buildStack();
       case 'positioned':
         return Positioned(
           top: _styleDouble(node.style['top']),
@@ -222,9 +237,7 @@ class _NodeWidget extends StatelessWidget {
           ),
         );
       case 'container':
-        return _wrapStyle(
-          _maybeChild() ?? _childrenColumn(),
-        );
+        return _wrapStyle(_maybeChild() ?? _childrenColumn());
       case 'textField':
         return TextField(
           decoration: InputDecoration(
@@ -266,6 +279,114 @@ class _NodeWidget extends StatelessWidget {
     }
   }
 
+  /// Compact badge+icon control that never stretches across the screen.
+  Widget _buildBadge() {
+    final count = node.propNum('count')?.toInt() ??
+        int.tryParse(node.propString('label') ?? '') ??
+        0;
+    final max = node.propNum('max')?.toInt() ?? 9;
+    final iconName = node.propString('icon') ??
+        node.propString('name') ??
+        'notifications';
+    final size = StyleMapper.width(node.style) ?? 44;
+    final iconSize = node.propNum('iconSize')?.toDouble() ?? size * 0.64;
+    final show = count > 0;
+    final label = count > max ? '$max+' : '$count';
+
+    Widget child = SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          Icon(
+            _iconData(iconName),
+            size: iconSize,
+            color: StyleMapper.color(node.style['color']) ??
+                const Color(0xFF1C1C24),
+          ),
+          if (show)
+            Positioned(
+              top: 2,
+              right: 2,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: StyleMapper.color(node.props['badgeColor']) ??
+                      const Color(0xFFFF3B5C),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.white, width: 2),
+                ),
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+
+    if (node.actions.containsKey('onPressed')) {
+      child = GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _dispatch('onPressed'),
+        child: child,
+      );
+    }
+    return child;
+  }
+
+  Widget _buildStack() {
+    final hasPositioned = node.children.any((c) => c.type == 'positioned');
+    final styleW = StyleMapper.width(node.style);
+    final styleH = StyleMapper.height(node.style);
+    // Positioned(right/top) needs a bounded Stack; default hit-target ~48.
+    final double? boxW = styleW ?? (hasPositioned ? 48 : null);
+    final double? boxH = styleH ?? (hasPositioned ? 48 : null);
+
+    Widget stack = Stack(
+      clipBehavior: Clip.none,
+      fit: (boxW != null && boxH != null) ? StackFit.expand : StackFit.loose,
+      alignment: StyleMapper.alignment(node.style['alignment']),
+      children: node.children
+          .map((c) => _NodeWidget(node: c, onAction: onAction))
+          .toList(),
+    );
+
+    if (boxW != null || boxH != null) {
+      stack = SizedBox(width: boxW, height: boxH, child: stack);
+    }
+
+    // Keep compact: don't let parents stretch the stack across the screen.
+    return Align(
+      alignment: Alignment.topLeft,
+      widthFactor: 1,
+      heightFactor: 1,
+      child: _wrapStyle(stack),
+    );
+  }
+
+  Widget _maybeAnimate(Widget child) {
+    final animation = node.style['animation'] ?? node.props['animation'];
+    if (animation == null) return child;
+    String kind = 'pulse';
+    if (animation is String) {
+      kind = animation;
+    } else if (animation is Map) {
+      kind = animation['type']?.toString() ?? animation['kind']?.toString() ?? 'pulse';
+    }
+    return _PreviewAnimation(kind: kind, child: child);
+  }
+
   Widget? _maybeChild() {
     if (node.children.isEmpty) return null;
     if (node.children.length == 1) {
@@ -276,7 +397,7 @@ class _NodeWidget extends StatelessWidget {
 
   Widget _childrenColumn() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: node.children
           .map((c) => _NodeWidget(node: c, onAction: onAction))
@@ -398,5 +519,72 @@ class _NodeWidget extends StatelessWidget {
       default:
         return Icons.star;
     }
+  }
+}
+
+class _PreviewAnimation extends StatefulWidget {
+  const _PreviewAnimation({required this.kind, required this.child});
+
+  final String kind;
+  final Widget child;
+
+  @override
+  State<_PreviewAnimation> createState() => _PreviewAnimationState();
+}
+
+class _PreviewAnimationState extends State<_PreviewAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final shake = widget.kind == 'shake' || widget.kind == 'wiggle';
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: shake ? 4000 : 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduce = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduce) return widget.child;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      child: widget.child,
+      builder: (context, child) {
+        final t = _controller.value;
+        switch (widget.kind) {
+          case 'shake':
+          case 'wiggle':
+            final ringEnd = 0.22;
+            final angle = t >= ringEnd
+                ? 0.0
+                : math.sin((t / ringEnd) * math.pi * 6) *
+                    (1 - t / ringEnd) *
+                    0.38;
+            return Transform.rotate(
+              angle: angle,
+              alignment: Alignment.topCenter,
+              child: child,
+            );
+          case 'bounce':
+            final dy = -6 * math.sin(t * math.pi * 2).abs();
+            return Transform.translate(offset: Offset(0, dy), child: child);
+          case 'pulse':
+          default:
+            final scale = 1 + 0.06 * math.sin(t * math.pi * 2);
+            return Transform.scale(scale: scale, child: child);
+        }
+      },
+    );
   }
 }

@@ -3,14 +3,13 @@ import 'package:ai_ui_studio/domain/entities/ui_component.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('parses fenced JSON envelope with valid schema', () {
+  test('parses visual envelope with preview files', () {
     const raw = '''
-Here you go:
 ```json
 {
   "componentName": "PromoCard",
   "description": "A promo card",
-  "platform": "flutter",
+  "platform": "visual",
   "schema": {
     "\$schemaVersion": "1.0",
     "root": {
@@ -18,9 +17,12 @@ Here you go:
       "props": { "data": "Hello" }
     }
   },
-  "source": {
-    "language": "dart",
-    "files": [{ "path": "promo_card.dart", "content": "class PromoCard {}" }]
+  "preview": {
+    "files": [
+      { "path": "preview/index.html", "content": "<div class='card'>Hello</div>" },
+      { "path": "preview/styles.css", "content": ".card{padding:12px}" },
+      { "path": "preview/script.js", "content": "" }
+    ]
   },
   "tags": ["card"],
   "warnings": []
@@ -29,9 +31,13 @@ Here you go:
 ''';
     final envelope = ResponseParser.parse(raw);
     expect(envelope.componentName, 'PromoCard');
-    expect(envelope.platform, TargetPlatformKind.flutter);
+    expect(envelope.platform, TargetPlatformKind.visual);
     expect(envelope.schemaValid, isTrue);
-    expect(envelope.sourceFiles.single.path, 'promo_card.dart');
+    expect(envelope.hasHtmlPreview, isTrue);
+    expect(
+      envelope.sourceFiles.any((f) => f.path == 'preview/index.html'),
+      isTrue,
+    );
   });
 
   test('throws when neither schema nor source present', () {

@@ -1,18 +1,78 @@
 import 'package:ai_ui_studio/domain/entities/ui_component.dart';
 
 class PromptBuilder {
-  static String systemPrompt(TargetPlatformKind platform) {
-    final platformLabel = platform.wireName;
+  /// Visual-first generation: plain-language → beautiful HTML preview (+ schema).
+  /// Export platform (Dart/HTML/React) is chosen later.
+  static String visualSystemPrompt() {
     return '''
-You are a senior mobile UI engineer working inside AI UI Studio.
-Your job is to generate PRODUCTION-QUALITY reusable UI components — not toy demos.
+You are a senior product UI designer/engineer inside AI UI Studio.
+Users describe UI in plain language. You create a BEAUTIFUL, interactive component
+they can see and refine BEFORE choosing an export platform (Flutter/HTML/React).
 
 Return ONLY one JSON object (no markdown fences, no commentary):
 {
   "componentName": "PascalCaseName",
   "description": "short description",
-  "platform": "$platformLabel",
+  "platform": "visual",
   "schema": { "\$schemaVersion": "1.0", "root": { } },
+  "preview": {
+    "files": [
+      { "path": "preview/index.html", "content": "..." },
+      { "path": "preview/styles.css", "content": "..." },
+      { "path": "preview/script.js", "content": "..." }
+    ]
+  },
+  "tags": ["tag"],
+  "warnings": []
+}
+
+========================
+VISUAL PREVIEW (mandatory, highest priority)
+========================
+- preview/index.html + styles.css + script.js are the LIVE preview the user sees.
+- Make it look like a polished ready-to-ship UI element (Claude-artifact quality).
+- Include real micro-interactions: hover/press scale, badge shake, ripple, counter morph, soft shadows.
+- Self-contained: no external CDNs, no remote fonts required (system fonts OK).
+- Root content is THE COMPONENT only (fits inside a rounded preview card) — not a full marketing page unless asked.
+- Use accessible controls (button/aria), 44px hit targets where relevant.
+- Prefer one focused component (bell, cart button, product card, nav pill, etc.).
+
+========================
+UNIVERSAL UI SCHEMA (secondary fallback)
+========================
+- \$schemaVersion must be "1.0" when schema is present.
+- Supported types: container, text, button, image, icon, badge, row, column, stack, positioned, card, textField, checkbox, switch, divider, padding, scrollView, sizedBox, spacer, center, expanded, flexible, gestureDetector.
+- Prefer type "badge" for notification bells with animation shake|pulse|bounce and actions.onPressed.
+- Schema is best-effort; HTML preview is the source of visual truth.
+
+========================
+QUALITY BAR
+========================
+- Ship-quality visuals, not toy demos.
+- No childish title+caption explainer chrome unless requested.
+- Never include API keys or secrets.
+''';
+  }
+
+  /// Convert an existing visual component into exportable source for one platform.
+  static String exportSystemPrompt(TargetPlatformKind platform) {
+    assert(platform.isExportTarget);
+    return '''
+You convert an AI UI Studio visual component into production ${platform.wireName} source.
+
+Return ONLY one JSON object:
+{
+  "componentName": "PascalCaseName",
+  "description": "short description",
+  "platform": "${platform.wireName}",
+  "schema": { "\$schemaVersion": "1.0", "root": { } },
+  "preview": {
+    "files": [
+      { "path": "preview/index.html", "content": "..." },
+      { "path": "preview/styles.css", "content": "..." },
+      { "path": "preview/script.js", "content": "..." }
+    ]
+  },
   "source": {
     "language": "${_language(platform)}",
     "files": [{ "path": "filename.ext", "content": "..." }]
@@ -21,108 +81,59 @@ Return ONLY one JSON object (no markdown fences, no commentary):
   "warnings": []
 }
 
-========================
-QUALITY BAR (mandatory)
-========================
-- Output must look like something shippable in a real app.
-- Prefer a focused reusable component (widget/component), not a full marketing page unless asked.
-- Use real spacing, typography hierarchy, colors, border radius, shadows when appropriate.
-- Support props/parameters in source (e.g. unreadCount, onTap, color, size).
-- Avoid childish / placeholder layouts like: big title + outlined box + caption text explaining the UI.
-- Do NOT invent fake "Уведомления / 3 новых уведомления" demo chrome unless the user asked for a full screen.
-- Icons should be meaningful (e.g. notifications_rounded). Badges must overlay the icon (Stack + Positioned), not sit as sibling text in a row/column.
-
-========================
-UNIVERSAL UI SCHEMA
-========================
-- \$schemaVersion must be "1.0".
-- Supported types: container, text, button, image, icon, row, column, stack, positioned, card, textField, checkbox, switch, divider, padding, scrollView, sizedBox, spacer, center, expanded, flexible, gestureDetector.
-- Colors: #RRGGBB or #AARRGGBB.
-- text => props.data; button => props.label; image => props.url; icon => props.name.
-- For overlays (notification badge, avatar status): use type "stack" with a child type "positioned" (style.top/right/left/bottom).
-- Schema is a BEST-EFFORT preview. If animations/custom painters cannot be expressed, still approximate visually in schema AND put the full implementation in source.
-- actions.onPressed may use {"type":"previewToast","message":"..."}.
-
-Example schema fragment for a notification bell with badge:
-{
-  "type": "sizedBox",
-  "style": { "width": 44, "height": 44 },
-  "children": [{
-    "type": "stack",
-    "style": { "alignment": "center" },
-    "children": [
-      { "type": "icon", "props": { "name": "notifications" }, "style": { "width": 28, "color": "#FF1C1C24" } },
-      {
-        "type": "positioned",
-        "style": { "top": 3, "right": 3 },
-        "children": [{
-          "type": "container",
-          "style": {
-            "padding": { "horizontal": 4, "vertical": 2 },
-            "decoration": { "color": "#FFFF3B5C", "borderRadius": 10, "border": { "color": "#FFF5F5F7", "width": 2 } }
-          },
-          "children": [{
-            "type": "text",
-            "props": { "data": "3" },
-            "style": { "textStyle": { "color": "#FFFFFFFF", "fontSize": 10, "fontWeight": "w700" } }
-          }]
-        }]
-      }
-    ]
-  }]
-}
-
-========================
-PLATFORM SOURCE RULES
-========================
+Keep/improve the HTML preview so Studio still looks good.
 ${_platformSourceRules(platform)}
-
-If the UI cannot be represented by schema, set "schema" to null and add warning "source_only", but ALWAYS provide excellent source.
 Never include API keys or secrets.
 ''';
   }
 
+  /// Legacy/platform-specific system prompt (export convert + older flows).
+  static String systemPrompt(TargetPlatformKind platform) {
+    if (platform == TargetPlatformKind.visual) {
+      return visualSystemPrompt();
+    }
+    return exportSystemPrompt(platform);
+  }
+
   static String _platformSourceRules(TargetPlatformKind platform) {
     switch (platform) {
+      case TargetPlatformKind.visual:
+        return 'Provide excellent HTML preview files under preview/.';
       case TargetPlatformKind.flutter:
         return '''
 Flutter / Dart source requirements:
 - Emit a reusable widget file (StatelessWidget OR StatefulWidget when animation/state is needed).
 - Include constructor parameters, const where possible, clear docs.
-- Use Material 3 idioms: Icon, Stack, Positioned, AnimatedScale/AnimatedBuilder when useful.
-- For notification bells: shake/ring animation when unreadCount > 0, hide badge at 0, respect MediaQuery.disableAnimations, Semantics label, hit target ~44px.
-- Include a small private demo/usage snippet ONLY as a comment or a separate optional demo widget — do not make the root preview a title+caption page.
+- Use Material 3 idioms; animations should match the HTML preview intent.
 - Code must compile as a standalone widget file (import material.dart; no app-specific packages).
 ''';
       case TargetPlatformKind.html:
         return '''
-HTML/CSS/JS:
-- Clean semantic HTML, modern CSS (flex/grid), accessible controls.
-- Separate files when useful: index.html, styles.css, script.js.
+HTML/CSS/JS export:
+- Clean semantic HTML, modern CSS, accessible controls.
+- You may promote preview/* into top-level index.html, styles.css, script.js for export.
 ''';
       case TargetPlatformKind.react:
         return '''
 React / JSX:
 - Functional component with props, readable JSX, minimal dependencies.
-- Export default component.
+- Export default component. Match preview visuals/interactions as closely as practical.
 ''';
     }
   }
 
-  static String userPrompt({
+  static String visualUserPrompt({
     required String description,
-    required TargetPlatformKind platform,
     String? regenerateHint,
   }) {
     final buffer = StringBuffer()
-      ..writeln('Target platform: ${platform.wireName}')
-      ..writeln('User request:')
+      ..writeln('Create a beautiful interactive UI component from this request:')
       ..writeln(description.trim())
       ..writeln()
       ..writeln(
-        'Deliver a serious, production-quality component. '
-        'Prioritize excellent source code. Schema preview must visually resemble the real component '
-        '(use stack/positioned for badges/overlays). Avoid toy demo layouts.',
+        'Platform will be chosen later at export. '
+        'Right now prioritize stunning HTML preview (preview/*) the user can click and refine. '
+        'Also include a reasonable Universal UI Schema. Avoid toy demo layouts.',
       );
     if (regenerateHint != null && regenerateHint.trim().isNotEmpty) {
       buffer
@@ -134,7 +145,36 @@ React / JSX:
     return buffer.toString();
   }
 
-  /// Iterative edit: keep the existing component and apply a change request.
+  static String userPrompt({
+    required String description,
+    required TargetPlatformKind platform,
+    String? regenerateHint,
+  }) {
+    if (platform == TargetPlatformKind.visual) {
+      return visualUserPrompt(
+        description: description,
+        regenerateHint: regenerateHint,
+      );
+    }
+    final buffer = StringBuffer()
+      ..writeln('Target export platform: ${platform.wireName}')
+      ..writeln('User request:')
+      ..writeln(description.trim())
+      ..writeln()
+      ..writeln(
+        'Deliver production-quality ${platform.wireName} source AND keep a polished HTML preview under preview/. '
+        'Avoid toy demo layouts.',
+      );
+    if (regenerateHint != null && regenerateHint.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Regeneration notes:')
+        ..writeln(regenerateHint.trim());
+    }
+    buffer.writeln('\nRespond with the JSON envelope only.');
+    return buffer.toString();
+  }
+
   static String refineUserPrompt({
     required String changeRequest,
     required TargetPlatformKind platform,
@@ -144,9 +184,9 @@ React / JSX:
     List<SourceFile> currentSourceFiles = const [],
   }) {
     final buffer = StringBuffer()
-      ..writeln('Target platform: ${platform.wireName}')
-      ..writeln('Task: REFINE an existing component. Do not start from scratch.')
-      ..writeln('Component name: $componentName');
+      ..writeln('Task: REFINE an existing visual UI component. Do not start from scratch.')
+      ..writeln('Component name: $componentName')
+      ..writeln('Current mode: ${platform.wireName}');
     if (originalPrompt != null && originalPrompt.trim().isNotEmpty) {
       buffer
         ..writeln()
@@ -155,14 +195,16 @@ React / JSX:
     }
     buffer
       ..writeln()
-      ..writeln('Requested changes (apply these carefully):')
+      ..writeln('Requested changes (apply carefully):')
       ..writeln(changeRequest.trim())
       ..writeln()
       ..writeln(
         'Rules for refine:\n'
-        '- Preserve what already works unless the change request overrides it.\n'
-        '- Update BOTH schema (preview) and source files.\n'
-        '- Keep production quality; no toy demo chrome.\n'
+        '- Update HTML preview files (preview/*) so the live Studio preview changes.\n'
+        '- Update schema when possible.\n'
+        '- Preserve export source files if present, unless the change requires updating them.\n'
+        '- Keep production quality; platform export is chosen later unless already set.\n'
+        '- Keep platform as "visual" unless the component already targets a specific export platform.\n'
         '- Keep the same componentName unless renaming was requested.',
       );
 
@@ -175,7 +217,7 @@ React / JSX:
 
     if (currentSourceFiles.isNotEmpty) {
       buffer.writeln();
-      buffer.writeln('Current source files:');
+      buffer.writeln('Current files:');
       for (final file in currentSourceFiles) {
         buffer
           ..writeln('--- ${file.path} ---')
@@ -184,6 +226,55 @@ React / JSX:
     }
 
     buffer.writeln('\nRespond with the full updated JSON envelope only.');
+    return buffer.toString();
+  }
+
+  static String exportConvertUserPrompt({
+    required TargetPlatformKind target,
+    required String componentName,
+    String? originalPrompt,
+    String? description,
+    String? currentSchemaJson,
+    List<SourceFile> currentSourceFiles = const [],
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('Convert this Studio component for EXPORT as ${target.wireName}.')
+      ..writeln('Component name: $componentName');
+    if (description != null && description.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Description:')
+        ..writeln(description.trim());
+    }
+    if (originalPrompt != null && originalPrompt.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Original prompt:')
+        ..writeln(originalPrompt.trim());
+    }
+    buffer
+      ..writeln()
+      ..writeln(
+        'Produce excellent ${target.wireName} source files that match the HTML preview visuals/interactions. '
+        'Keep preview/* so Studio preview still works. Set platform to "${target.wireName}".',
+      );
+
+    if (currentSchemaJson != null && currentSchemaJson.trim().isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Current schema JSON:')
+        ..writeln(_truncate(currentSchemaJson.trim(), 5000));
+    }
+    if (currentSourceFiles.isNotEmpty) {
+      buffer.writeln();
+      buffer.writeln('Current files:');
+      for (final file in currentSourceFiles) {
+        buffer
+          ..writeln('--- ${file.path} ---')
+          ..writeln(_truncate(file.content, 7000));
+      }
+    }
+    buffer.writeln('\nRespond with the JSON envelope only.');
     return buffer.toString();
   }
 
@@ -203,16 +294,17 @@ ${errors.map((e) => '- $e').join('\n')}
 Previous output:
 $previousOutput
 
-Return a corrected JSON envelope only. Keep production-quality source. Ensure schema.\$schemaVersion is "1.0" when schema is present.
+Return a corrected JSON envelope only. Prefer valid preview/* HTML files. Ensure schema.\$schemaVersion is "1.0" when schema is present.
 ''';
   }
 
   static String _language(TargetPlatformKind platform) {
     switch (platform) {
-      case TargetPlatformKind.flutter:
-        return 'dart';
+      case TargetPlatformKind.visual:
       case TargetPlatformKind.html:
         return 'html';
+      case TargetPlatformKind.flutter:
+        return 'dart';
       case TargetPlatformKind.react:
         return 'jsx';
     }

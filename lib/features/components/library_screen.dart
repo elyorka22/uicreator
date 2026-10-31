@@ -98,13 +98,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       trailing: PopupMenuButton<String>(
                         onSelected: (value) async {
                           if (value == 'open') {
-                            context.go('/studio/${item.id}');
+                            context.push('/library/studio/${item.id}');
                           } else if (value == 'duplicate') {
                             final copy = await ref
                                 .read(componentsListProvider.notifier)
                                 .duplicate(item.id);
                             if (context.mounted) {
-                              context.go('/studio/${copy.id}');
+                              context.push('/library/studio/${copy.id}');
                             }
                           } else if (value == 'delete') {
                             final ok = await showDialog<bool>(
@@ -145,7 +145,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           ),
                         ],
                       ),
-                      onTap: () => context.go('/studio/${item.id}'),
+                      onTap: () => context.push('/library/studio/${item.id}'),
                     );
                   },
                 );

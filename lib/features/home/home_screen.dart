@@ -21,7 +21,7 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'AI chat',
-            onPressed: () => context.push('/chat'),
+            onPressed: () => context.push('/generate/chat'),
             icon: const Icon(Icons.chat_bubble_outline),
           ),
         ],
@@ -110,7 +110,7 @@ class HomeScreen extends ConsumerWidget {
                     title: Text(item.name),
                     subtitle: Text(item.platform.wireName),
                     trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.push('/studio/${item.id}'),
+                    onTap: () => context.push('/library/studio/${item.id}'),
                   );
                 }).toList(),
               );

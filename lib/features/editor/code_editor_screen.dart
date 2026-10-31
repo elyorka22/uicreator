@@ -3,6 +3,7 @@ import 'package:ai_ui_studio/domain/entities/ui_component.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:re_editor/re_editor.dart';
 import 'package:re_highlight/languages/css.dart';
 import 'package:re_highlight/languages/dart.dart';
@@ -86,6 +87,15 @@ class _CodeEditorScreenState extends ConsumerState<CodeEditorScreen> {
         return Scaffold(
           appBar: AppBar(
             title: Text(_files.isEmpty ? 'Editor' : _files[_index].path),
+            leading: BackButton(
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/library/studio/${widget.componentId}');
+                }
+              },
+            ),
             actions: [
               IconButton(
                 tooltip: 'Copy',

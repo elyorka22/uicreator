@@ -262,6 +262,15 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
         return Scaffold(
           appBar: AppBar(
             title: Text(component.name),
+            leading: BackButton(
+              onPressed: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/library');
+                }
+              },
+            ),
             actions: [
               IconButton(
                 tooltip: 'Rename',
@@ -280,7 +289,8 @@ class _StudioScreenState extends ConsumerState<StudioScreen>
               ),
               IconButton(
                 tooltip: 'Edit code',
-                onPressed: () => context.push('/editor/${component.id}'),
+                onPressed: () =>
+                    context.push('/library/studio/${component.id}/editor'),
                 icon: const Icon(Icons.code),
               ),
             ],

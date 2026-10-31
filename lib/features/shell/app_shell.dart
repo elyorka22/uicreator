@@ -9,6 +9,7 @@ class AppShell extends StatelessWidget {
   void _onTap(int index) {
     navigationShell.goBranch(
       index,
+      // Returning to a tab restores its root screen (library list, settings, …).
       initialLocation: index == navigationShell.currentIndex,
     );
   }

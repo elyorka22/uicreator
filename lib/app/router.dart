@@ -36,6 +36,12 @@ GoRouter createAppRouter() {
               GoRoute(
                 path: '/generate',
                 builder: (context, state) => const GeneratorScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'chat',
+                    builder: (context, state) => const ChatScreen(),
+                  ),
+                ],
               ),
             ],
           ),
@@ -46,8 +52,18 @@ GoRouter createAppRouter() {
                 builder: (context, state) => const LibraryScreen(),
                 routes: [
                   GoRoute(
-                    path: 'chat',
-                    builder: (context, state) => const ChatScreen(),
+                    path: 'studio/:id',
+                    builder: (context, state) => StudioScreen(
+                      componentId: state.pathParameters['id']!,
+                    ),
+                    routes: [
+                      GoRoute(
+                        path: 'editor',
+                        builder: (context, state) => CodeEditorScreen(
+                          componentId: state.pathParameters['id']!,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -81,25 +97,6 @@ GoRouter createAppRouter() {
             ],
           ),
         ],
-      ),
-      GoRoute(
-        parentNavigatorKey: rootNavigatorKey,
-        path: '/studio/:id',
-        builder: (context, state) => StudioScreen(
-          componentId: state.pathParameters['id']!,
-        ),
-      ),
-      GoRoute(
-        parentNavigatorKey: rootNavigatorKey,
-        path: '/editor/:id',
-        builder: (context, state) => CodeEditorScreen(
-          componentId: state.pathParameters['id']!,
-        ),
-      ),
-      GoRoute(
-        parentNavigatorKey: rootNavigatorKey,
-        path: '/chat',
-        builder: (context, state) => const ChatScreen(),
       ),
     ],
   );

@@ -90,7 +90,7 @@ class _GeneratorScreenState extends ConsumerState<GeneratorScreen> {
     );
     final saved = await ref.read(componentsListProvider.notifier).save(draft);
     if (!mounted) return;
-    context.go('/studio/${saved.id}');
+    context.go('/library/studio/${saved.id}');
   }
 
   @override

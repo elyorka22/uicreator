@@ -1,5 +1,7 @@
 import 'package:ai_ui_studio/ai/ports/ai_provider_port.dart';
+import 'package:ai_ui_studio/ai/provider_presets.dart';
 import 'package:ai_ui_studio/ai/providers/anthropic_adapter.dart';
+import 'package:ai_ui_studio/ai/providers/gemini_adapter.dart';
 import 'package:ai_ui_studio/ai/providers/openai_compatible_adapter.dart';
 import 'package:ai_ui_studio/domain/entities/ai_provider_config.dart';
 
@@ -7,27 +9,38 @@ class ProviderRegistry {
   ProviderRegistry({
     required OpenAiCompatibleAdapter openAiCompatibleAdapter,
     required AnthropicAdapter anthropicAdapter,
-  }) : _adapters = {
-          AiProviderType.openaiCompatible: openAiCompatibleAdapter,
-          AiProviderType.anthropic: anthropicAdapter,
-        };
+    required GeminiAdapter geminiAdapter,
+  })  : _openAi = openAiCompatibleAdapter,
+        _anthropic = anthropicAdapter,
+        _gemini = geminiAdapter;
 
-  final Map<AiProviderType, AiProviderPort> _adapters;
-
-  List<AiProviderPort> get all => _adapters.values.toList(growable: false);
+  final OpenAiCompatibleAdapter _openAi;
+  final AnthropicAdapter _anthropic;
+  final GeminiAdapter _gemini;
 
   AiProviderPort resolve(AiProviderType type) {
-    final adapter = _adapters[type];
-    if (adapter == null) {
-      throw StateError('No adapter registered for $type');
+    switch (ProviderPresets.byType(type).family) {
+      case AiAdapterFamily.openaiCompatible:
+        return _openAi;
+      case AiAdapterFamily.anthropic:
+        return _anthropic;
+      case AiAdapterFamily.gemini:
+        return _gemini;
     }
-    return adapter;
   }
 
   AiProviderPort? resolveById(String adapterId) {
-    for (final adapter in _adapters.values) {
-      if (adapter.id == adapterId) return adapter;
+    switch (adapterId) {
+      case 'openai_compatible':
+        return _openAi;
+      case 'anthropic':
+        return _anthropic;
+      case 'gemini':
+        return _gemini;
+      default:
+        return null;
     }
-    return null;
   }
+
+  List<AiProviderPort> get all => [_openAi, _anthropic, _gemini];
 }

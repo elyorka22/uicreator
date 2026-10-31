@@ -4,7 +4,7 @@ Local-first Flutter Android app that generates reusable UI components with **you
 
 ## Features (MVP)
 
-- Configure OpenAI-compatible and Anthropic providers (secure key storage)
+- Configure many AI providers (OpenAI, DeepSeek, Groq, OpenRouter, Mistral, Together, Anthropic, Gemini, custom OpenAI-compatible) with secure key storage
 - Generate UI from natural language (schema + source)
 - Live Flutter preview from Universal UI Schema (never executes AI Dart)
 - HTML WebView preview for HTML exports

@@ -3,7 +3,10 @@ class AppConstants {
   static const String applicationId = 'com.aiuistudio.app';
 
   static const String openAiDefaultBaseUrl = 'https://api.openai.com/v1';
+  static const String deepSeekDefaultBaseUrl = 'https://api.deepseek.com/v1';
   static const String anthropicDefaultBaseUrl = 'https://api.anthropic.com';
+  static const String geminiDefaultBaseUrl =
+      'https://generativelanguage.googleapis.com/v1beta';
   static const String anthropicApiVersion = '2023-06-01';
 
   static const Duration httpConnectTimeout = Duration(seconds: 20);

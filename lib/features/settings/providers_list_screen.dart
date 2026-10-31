@@ -1,3 +1,4 @@
+import 'package:ai_ui_studio/ai/provider_presets.dart';
 import 'package:ai_ui_studio/app/providers.dart';
 import 'package:ai_ui_studio/domain/entities/ai_provider_config.dart';
 import 'package:flutter/material.dart';
@@ -7,14 +8,7 @@ import 'package:go_router/go_router.dart';
 class ProvidersListScreen extends ConsumerWidget {
   const ProvidersListScreen({super.key});
 
-  String _typeLabel(AiProviderType type) {
-    switch (type) {
-      case AiProviderType.openaiCompatible:
-        return 'OpenAI compatible';
-      case AiProviderType.anthropic:
-        return 'Anthropic';
-    }
-  }
+  String _typeLabel(AiProviderType type) => ProviderPresets.labelFor(type);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

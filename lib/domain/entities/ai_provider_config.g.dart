@@ -41,6 +41,13 @@ Map<String, dynamic> _$$AiProviderConfigImplToJson(
     };
 
 const _$AiProviderTypeEnumMap = {
+  AiProviderType.openai: 'openai',
+  AiProviderType.deepseek: 'deepseek',
+  AiProviderType.groq: 'groq',
+  AiProviderType.openRouter: 'openRouter',
+  AiProviderType.mistral: 'mistral',
+  AiProviderType.together: 'together',
   AiProviderType.openaiCompatible: 'openaiCompatible',
   AiProviderType.anthropic: 'anthropic',
+  AiProviderType.gemini: 'gemini',
 };

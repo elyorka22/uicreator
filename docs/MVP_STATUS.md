@@ -7,7 +7,7 @@
 
 ## What works
 
-1. **AI provider configuration (BYOK)** — OpenAI-compatible Chat Completions + Anthropic Messages; secure key storage; custom base URLs; HTTPS default with HTTP opt-in warning.
+1. **AI provider configuration (BYOK)** — presets for OpenAI, DeepSeek, Groq, OpenRouter, Mistral, Together, custom OpenAI-compatible, Anthropic, and Google Gemini; secure key storage; custom base URLs; HTTPS default with HTTP opt-in warning.
 2. **AI UI generation** — dedicated prompts return Universal UI Schema + source files; streaming; parse + validation; controlled repair retry.
 3. **Universal UI Schema v1.0** — validated JSON tree for preview/edit.
 4. **Flutter Widget Renderer** — fixed renderer only (no eval / no dynamic Dart execution).

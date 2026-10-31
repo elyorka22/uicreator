@@ -4,8 +4,15 @@ part 'ai_provider_config.freezed.dart';
 part 'ai_provider_config.g.dart';
 
 enum AiProviderType {
+  openai,
+  deepseek,
+  groq,
+  openRouter,
+  mistral,
+  together,
   openaiCompatible,
   anthropic,
+  gemini,
 }
 
 @freezed

@@ -1,5 +1,5 @@
+import 'package:ai_ui_studio/ai/provider_presets.dart';
 import 'package:ai_ui_studio/app/providers.dart';
-import 'package:ai_ui_studio/core/constants/app_constants.dart';
 import 'package:ai_ui_studio/core/utils/url_validator.dart';
 import 'package:ai_ui_studio/domain/entities/ai_provider_config.dart';
 import 'package:dio/dio.dart';
@@ -24,7 +24,7 @@ class _ProviderEditScreenState extends ConsumerState<ProviderEditScreen> {
   final _modelController = TextEditingController();
   final _apiKeyController = TextEditingController();
 
-  AiProviderType _type = AiProviderType.openaiCompatible;
+  AiProviderType _type = AiProviderType.deepseek;
   AiProviderConfig? _existing;
   bool _loading = true;
   bool _saving = false;
@@ -34,6 +34,8 @@ class _ProviderEditScreenState extends ConsumerState<ProviderEditScreen> {
 
   bool get _isNew => widget.providerId == null;
 
+  ProviderPreset get _preset => ProviderPresets.byType(_type);
+
   @override
   void initState() {
     super.initState();
@@ -42,9 +44,7 @@ class _ProviderEditScreenState extends ConsumerState<ProviderEditScreen> {
 
   Future<void> _bootstrap() async {
     if (_isNew) {
-      _baseUrlController.text = AppConstants.openAiDefaultBaseUrl;
-      _modelController.text = 'gpt-4o-mini';
-      _nameController.text = 'OpenAI';
+      _applyPreset(AiProviderType.deepseek, force: true);
       setState(() => _loading = false);
       return;
     }
@@ -70,23 +70,23 @@ class _ProviderEditScreenState extends ConsumerState<ProviderEditScreen> {
     super.dispose();
   }
 
+  void _applyPreset(AiProviderType type, {bool force = false}) {
+    final preset = ProviderPresets.byType(type);
+    _type = type;
+    if (force || _isNew) {
+      _nameController.text = preset.defaultDisplayName;
+      _baseUrlController.text = preset.baseUrl;
+      _modelController.text = preset.defaultModel;
+    } else {
+      _baseUrlController.text = preset.baseUrl;
+      _modelController.text = preset.defaultModel;
+      _nameController.text = preset.defaultDisplayName;
+    }
+  }
+
   void _onTypeChanged(AiProviderType? type) {
     if (type == null) return;
-    setState(() {
-      _type = type;
-      if (_isNew || _baseUrlController.text.trim().isEmpty) {
-        _baseUrlController.text = type == AiProviderType.anthropic
-            ? AppConstants.anthropicDefaultBaseUrl
-            : AppConstants.openAiDefaultBaseUrl;
-      }
-      if (_isNew) {
-        _modelController.text = type == AiProviderType.anthropic
-            ? 'claude-3-5-haiku-latest'
-            : 'gpt-4o-mini';
-        _nameController.text =
-            type == AiProviderType.anthropic ? 'Anthropic' : 'OpenAI';
-      }
-    });
+    setState(() => _applyPreset(type, force: true));
   }
 
   Future<void> _save() async {
@@ -227,9 +227,7 @@ class _ProviderEditScreenState extends ConsumerState<ProviderEditScreen> {
       );
     }
 
-    final registry = ref.watch(providerRegistryProvider);
-    final adapter = registry.resolve(_type);
-    final modelOptions = adapter.catalogModels;
+    final modelOptions = _preset.models;
 
     return Scaffold(
       appBar: AppBar(
@@ -250,19 +248,24 @@ class _ProviderEditScreenState extends ConsumerState<ProviderEditScreen> {
           children: [
             DropdownButtonFormField<AiProviderType>(
               value: _type,
-              decoration: const InputDecoration(labelText: 'Provider type'),
-              items: const [
-                DropdownMenuItem(
-                  value: AiProviderType.openaiCompatible,
-                  child: Text('OpenAI / OpenAI-compatible'),
-                ),
-                DropdownMenuItem(
-                  value: AiProviderType.anthropic,
-                  child: Text('Anthropic Claude'),
-                ),
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Provider'),
+              items: [
+                for (final preset in ProviderPresets.all)
+                  DropdownMenuItem(
+                    value: preset.type,
+                    child: Text(preset.label),
+                  ),
               ],
               onChanged: _onTypeChanged,
             ),
+            if (_preset.helpText != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _preset.helpText!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
               controller: _nameController,
@@ -295,6 +298,22 @@ class _ProviderEditScreenState extends ConsumerState<ProviderEditScreen> {
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Required' : null,
             ),
+            if (modelOptions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final model in modelOptions)
+                    ActionChip(
+                      label: Text(model.displayName),
+                      onPressed: () => setState(
+                        () => _modelController.text = model.id,
+                      ),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             TextFormField(
               controller: _apiKeyController,

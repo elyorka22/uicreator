@@ -1,5 +1,6 @@
 import 'package:ai_ui_studio/ai/dio/ai_dio_factory.dart';
 import 'package:ai_ui_studio/ai/providers/anthropic_adapter.dart';
+import 'package:ai_ui_studio/ai/providers/gemini_adapter.dart';
 import 'package:ai_ui_studio/ai/providers/openai_compatible_adapter.dart';
 import 'package:ai_ui_studio/ai/registry/provider_registry.dart';
 import 'package:ai_ui_studio/core/logging/redacting_logger.dart';
@@ -39,6 +40,7 @@ final providerRegistryProvider = Provider<ProviderRegistry>((ref) {
   return ProviderRegistry(
     openAiCompatibleAdapter: OpenAiCompatibleAdapter(dioFactory),
     anthropicAdapter: AnthropicAdapter(dioFactory),
+    geminiAdapter: GeminiAdapter(dioFactory),
   );
 });
 

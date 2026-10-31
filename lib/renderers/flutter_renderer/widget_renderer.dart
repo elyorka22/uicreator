@@ -187,11 +187,28 @@ class _NodeWidget extends StatelessWidget {
       case 'stack':
         return _wrapStyle(
           Stack(
+            clipBehavior: Clip.none,
             alignment: StyleMapper.alignment(node.style['alignment']),
             children: node.children
                 .map((c) => _NodeWidget(node: c, onAction: onAction))
                 .toList(),
           ),
+        );
+      case 'positioned':
+        return Positioned(
+          top: _styleDouble(node.style['top']),
+          right: _styleDouble(node.style['right']),
+          bottom: _styleDouble(node.style['bottom']),
+          left: _styleDouble(node.style['left']),
+          width: StyleMapper.width(node.style),
+          height: StyleMapper.height(node.style),
+          child: _maybeChild() ?? const SizedBox.shrink(),
+        );
+      case 'gestureDetector':
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _dispatch('onPressed'),
+          child: _maybeChild() ?? _childrenColumn(),
         );
       case 'card':
         return Card(
@@ -336,6 +353,11 @@ class _NodeWidget extends StatelessWidget {
     }
   }
 
+  double? _styleDouble(dynamic raw) {
+    if (raw is num) return raw.toDouble();
+    return double.tryParse(raw?.toString() ?? '');
+  }
+
   IconData _iconData(String name) {
     switch (name) {
       case 'home':
@@ -354,6 +376,24 @@ class _NodeWidget extends StatelessWidget {
         return Icons.close;
       case 'favorite':
         return Icons.favorite;
+      case 'notifications':
+      case 'notifications_rounded':
+      case 'notification':
+      case 'bell':
+        return Icons.notifications_rounded;
+      case 'notifications_none':
+      case 'notifications_none_rounded':
+        return Icons.notifications_none_rounded;
+      case 'notifications_active':
+        return Icons.notifications_active_rounded;
+      case 'mail':
+      case 'email':
+        return Icons.mail_outline;
+      case 'menu':
+        return Icons.menu;
+      case 'more':
+      case 'more_vert':
+        return Icons.more_vert;
       case 'star':
       default:
         return Icons.star;

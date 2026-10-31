@@ -51,4 +51,30 @@ void main() {
     expect(result.isValid, isFalse);
     expect(result.errors.join(' '), contains('unsupported type'));
   });
+
+  test('accepts stack with positioned badge', () {
+    final result = UiSchemaValidator.validate({
+      '\$schemaVersion': '1.0',
+      'root': {
+        'type': 'stack',
+        'children': [
+          {
+            'type': 'icon',
+            'props': {'name': 'notifications'},
+          },
+          {
+            'type': 'positioned',
+            'style': {'top': 0, 'right': 0},
+            'children': [
+              {
+                'type': 'text',
+                'props': {'data': '3'},
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(result.isValid, isTrue);
+  });
 }

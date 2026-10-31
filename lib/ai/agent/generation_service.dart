@@ -69,7 +69,9 @@ class GenerationService {
         AiChatRequest(
           model: config.modelId,
           messages: messages,
-          temperature: 0.4,
+          temperature: 0.35,
+          // Complex widgets + JSON envelope need generous room.
+          maxTokens: 8192,
           responseFormat: adapter.supportsJsonObject
               ? AiResponseFormat.jsonObject
               : AiResponseFormat.text,
@@ -176,6 +178,7 @@ class GenerationService {
             ),
           ],
           temperature: 0.2,
+          maxTokens: 8192,
           responseFormat: adapter.supportsJsonObject
               ? AiResponseFormat.jsonObject
               : AiResponseFormat.text,

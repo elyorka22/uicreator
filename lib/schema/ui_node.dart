@@ -133,6 +133,7 @@ const Set<String> kSupportedUiNodeTypes = {
   'row',
   'column',
   'stack',
+  'positioned',
   'card',
   'textField',
   'checkbox',
@@ -145,4 +146,5 @@ const Set<String> kSupportedUiNodeTypes = {
   'center',
   'expanded',
   'flexible',
+  'gestureDetector',
 };

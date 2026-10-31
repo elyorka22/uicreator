@@ -28,6 +28,7 @@
             "row",
             "column",
             "stack",
+            "positioned",
             "card",
             "textField",
             "checkbox",
@@ -39,7 +40,8 @@
             "spacer",
             "center",
             "expanded",
-            "flexible"
+            "flexible",
+            "gestureDetector"
           ]
         },
         "id": { "type": "string" },
